@@ -123,7 +123,7 @@ namespace util{
                 TVal val_;
                 level_t level_;
                 char* mem;
-                node_t* forward_[0];
+                node_t* forward_[1];
             };
 
             struct list_t

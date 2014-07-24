@@ -146,7 +146,6 @@ Status MemoryMgr::Free(uint64_t off, uint64_t size)
 
             fbt_deleted.size += cur_it->second.size;
             set_fm_.insert(fbt_deleted);
-            cout << "prev merged!" << endl;
        }
     }
     // 向后合并
@@ -181,7 +180,6 @@ Status MemoryMgr::Free(uint64_t off, uint64_t size)
        return Status::OK(); 
     }
     fb_mgr_->AddBlock(off, size);
-    cout << "No Merge!" << endl;
     set_fm_.insert(fbt);
     return Status::OK();
     

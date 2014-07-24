@@ -31,10 +31,11 @@ Status Entdb::Put(const std::string& key, const std::vector<char>& value)
 {
     uint64_t request_size = key.size() + value.size();
     uint64_t off, rsp_size;
-    m_mgr_->Allocate(request_size, &off, &rsp_size);
 
-    index_->Put(key, value.size(), off);
+    m_mgr_->Allocate(request_size, &off, &rsp_size);
     
+    index_->Put(key, value.size(), off);
+
     vector<char> s(key.begin(), key.end());
     dp_->Write(off, key.size(), s);
     dp_->Write(off+key.size(), value.size(), value);
@@ -70,7 +71,7 @@ Status Entdb::Open(const std::string& location, const std::string& db_name)
 
     index_->Open(index_name, 1024);
 
-    dp_ = new DataPool;
+    dp_ = new DataPool();
     // 数值待定
     dp_->Open(dp_name, 1024);
 
