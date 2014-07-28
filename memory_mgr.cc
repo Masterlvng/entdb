@@ -185,3 +185,7 @@ Status MemoryMgr::Free(uint64_t off, uint64_t size)
     
 }
 
+uint64_t MemoryMgr::AlignSize(uint64_t req_size)
+{
+    return align_size(req_size, ALIGNMENT_DATA);
+}

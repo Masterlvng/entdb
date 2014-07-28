@@ -6,7 +6,7 @@
 
 namespace entdb
 {
-    const uint32_t ENTRY_SIZE = 72;
+    const uint32_t ENTRY_SIZE = 80;
     class Index
     {
         public:

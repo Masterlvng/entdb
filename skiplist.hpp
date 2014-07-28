@@ -4,16 +4,17 @@
 #include <stdlib.h>
 #include <assert.h>
 #include "random.h"
+#include <vector>
 
 namespace util{
     typedef int level_t;
     const level_t MAX_LEVEL = 16;
 
-    template <typename TKey, typename TVal>
+    template <typename TKey, typename TVal, class Comparator>
     class SkipList 
     {
         public:
-            SkipList(): rand_(0x01bdfe8a)
+            SkipList(Comparator com): rand_(0x01bdfe8a), compare_(com)
             {
                 init_();
             }
@@ -39,17 +40,16 @@ namespace util{
                     level_t level = randomLevel_();
                     if(level > list_->level_)
                     {
-                        //level = ++list_->level_;
                         int i;
-                        for(i = list_->level_; i<= level; ++i)
+                        for(i = list_->level_; i< level; ++i)
                             prev[i] = list_->header_;
                         list_->level_ = level;
                     }
-                    node_t* newNode = newNode_(level);
+                    node_t* newNode = new node_t(level);
                     newNode->key_ = key;
                     newNode->val_ = val;
-                    int i = level;
-                    for(;i >= 0; --i)
+                    int i = 0;
+                    for(;i < level; ++i)
                     {
                         node_t* tempN = prev[i];
                         newNode->forward_[i] = tempN->forward_[i];
@@ -78,9 +78,7 @@ namespace util{
                         prev[i]->forward_[i] = n->forward_[i];
                     }
 
-                    //free(n->mem);
-                    //delete n;
-                    freeNode_(n);
+                    delete n;
                     while(list_->level_ > 0
                             && list_->header_->forward_[list_->level_] == nil_)
                     {
@@ -96,20 +94,11 @@ namespace util{
                 while(n != nil_)
                 {
                     node_t* tempN = n->forward_[0];
-                    /*
-                    char *mem = n->mem;
-                    n->~node_t();
-                    free(mem);
-                    */
-                    freeNode_(n);
+
+                    delete n;
                     n = tempN;
                 }
-                /*
-                char *mem = n->mem;
-                n->~node_t();
-                free(mem);
-                */
-                freeNode_(n);
+                delete n;
                 free(list_);
             }
             
@@ -118,12 +107,12 @@ namespace util{
             {
                 public:
                 node_t(){}
+                node_t(level_t level):level_(level) { forward_.resize(level + 1); }
                 ~node_t(){}
                 TKey key_;
                 TVal val_;
                 level_t level_;
-                char* mem;
-                node_t* forward_[1];
+                std::vector<node_t*> forward_;
             };
 
             struct list_t
@@ -135,16 +124,21 @@ namespace util{
             list_t* list_;
             node_t* nil_;
             Random rand_;
+            Comparator compare_;
         private:
             void init_()
             {
-                
+                /* 
                 nil_ = newNode_(1);
                 nil_->level_ = 0;
                 nil_->forward_[0] = NULL;
+                */
+                nil_ = new node_t(0);
+                nil_->forward_[0] = NULL;
+
                 list_ = (list_t*)malloc(sizeof(list_t));
                 list_->level_ = 0;
-                list_->header_ = newNode_(MAX_LEVEL);
+                list_->header_ = new node_t(MAX_LEVEL);
                 list_->header_->level_ = 0;
                 int i;
                 for(i = 0; i < MAX_LEVEL; ++i)
@@ -190,21 +184,22 @@ namespace util{
                 int i = list_->level_;
                 for(; i>=0; --i)
                 {
-                    while(n->forward_[i]->forward_[0] != NULL && n->forward_[i]->key_ < key)
+                    while(n->forward_[i]->forward_[0] != NULL && compare_(n->forward_[i]->key_,  key) < 0)
                     {
                         n = n->forward_[i];
                     }
                     prev[i] = n;
                 }
-                if (n->forward_[0]->key_ != key)
-                {
-                    return false;
-                }
-                else
-                {
+                if (compare_(n->forward_[0]->key_, key) == 0)
+                {   
                     val = n->forward_[0]->val_;
                     *node = n->forward_[0];
                     return true;
+
+                }
+                else
+                {
+                    return false;
                 }
             }
     };

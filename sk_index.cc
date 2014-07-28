@@ -3,7 +3,7 @@
 using namespace entdb;
 using namespace std;
 
-SKIndex::SKIndex()
+SKIndex::SKIndex():index_(comp_)
 {
 
 }
@@ -20,13 +20,15 @@ uint64_t SKIndex::NumIndex()
 
 Status SKIndex::Get(const std::string& key,
                     offset_t* off,
-                    uint64_t* size)
+                    uint64_t* size,
+                    uint64_t* disk_size)
 {
     entry_t e;
     if (index_.Search(key, e))
     {
         *off = e.off;
-        *size = e.size;
+        *size = e.value_size;
+        *disk_size = e.disk_size;
         return Status::OK();
     }
     else
@@ -35,7 +37,8 @@ Status SKIndex::Get(const std::string& key,
 
 Status SKIndex::Put(const std::string& key,
                     uint64_t value_size,
-                    offset_t off)
+                    offset_t off,
+                    uint64_t disk_size)
 {
     Status s;
     entry_t e;
@@ -47,8 +50,10 @@ Status SKIndex::Put(const std::string& key,
     if (index_.Search(key, e))
     {
         //found
+        //update
         e.off = off;
-        e.size = value_size;
+        e.value_size = value_size;
+        e.disk_size = disk_size;
         index_.Insert(key, e);
         writeEntry(data_ + e.pos * ENTRY_SIZE, e, true);
     }
@@ -60,7 +65,8 @@ Status SKIndex::Put(const std::string& key,
         e.pos = pos;
         e.key = key;
         e.off = off;
-        e.size = value_size;
+        e.value_size = value_size;
+        e.disk_size = disk_size;
 
         index_.Insert(key, e);
         writeEntry(data_ + pos * ENTRY_SIZE, e, false);
@@ -98,8 +104,9 @@ int SKIndex::readEntry(const char* data, entry_t& e)
      * uint32_t keysize
      * char* key // max 48
      * uint64_t off
-     * uint64_t size
-     * 结构大小固定为72
+     * uint64_t value size
+     * uint64_t disk size
+     * 结构大小固定为 80
      * */
    e.pos = (data - data_) / ENTRY_SIZE;
 
@@ -107,14 +114,21 @@ int SKIndex::readEntry(const char* data, entry_t& e)
    if (flag != 1931)
        return 0;
    data += sizeof(uint32_t);
+
    uint32_t keysize = *(uint32_t*) data;
    data += sizeof(uint32_t);
+
    string s(data, data+keysize);
    e.key = s;
    data += keysize;
+
    e.off = *(uint64_t*)data;
    data += sizeof(uint64_t);
-   e.size = *(uint64_t*)data;
+
+   e.value_size = *(uint64_t*)data;
+   data += sizeof(uint64_t);
+
+   e.disk_size = *(uint64_t*)data;
 
    return 1;
 }
@@ -137,8 +151,12 @@ void SKIndex::writeEntry(char* data, const entry_t& e, bool over_write)
    *(uint64_t*)data = e.off;
    data += sizeof(uint64_t);
 
-   //size
-    *(uint64_t*)data = e.size;
+   //value size
+    *(uint64_t*)data = e.value_size;
+    data += sizeof(uint64_t);
+
+    // disk size
+    *(uint64_t*)data = e.disk_size;
 
     if(!over_write)
         header_->num_free_entries -= 1;

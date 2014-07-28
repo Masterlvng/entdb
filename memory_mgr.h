@@ -26,6 +26,7 @@ namespace entdb
             Status Allocate(uint64_t req_size, offset_t* off, uint64_t* rsp_size);
             Status Free(offset_t off, uint64_t size);
             Status Sync();
+            uint64_t AlignSize(uint64_t req_size);
             
         private:
             std::string filename_;
