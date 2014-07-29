@@ -27,7 +27,7 @@ Status MemoryMgr::Open(const string& filename, DataPool* dp,
     std::map<offset_t, fm_block_t>::iterator it_fmb;
     for (it_fmb = fb_mgr_->map_fm_.begin(); it_fmb != fb_mgr_->map_fm_.end(); ++it_fmb)
     {
-        //
+        // mutex lock
         set_fm_.insert(it_fmb->second); 
     }
     return Status::OK();
@@ -55,6 +55,8 @@ Status MemoryMgr::Allocate(uint64_t req_size, offset_t* off_out, uint64_t* rsp_s
     fbt.size = *rsp_size;
     
     std::set<fm_block_t>::iterator it_set;
+
+    //mutex lock
     it_set = set_fm_.upper_bound(fbt);
     
     if (it_set == set_fm_.end())
@@ -122,6 +124,8 @@ Status MemoryMgr::Free(uint64_t off, uint64_t size)
     
     fb_mgr_->AddBlock(off, size);
     std::map<uint64_t, fm_block_t>::iterator cur_it, next_it, prev_it;
+
+    //mutex lock
     cur_it = fb_mgr_->map_fm_.find(fbt.offset);
 
     next_it = fb_mgr_->map_fm_.find(fbt.offset);

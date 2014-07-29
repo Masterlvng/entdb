@@ -30,24 +30,40 @@ Status FMBMgr::AddBlock(offset_t offset, uint64_t size)
     //select free slots
     //if full expand file
     //set pos back to new block
-    
+    int page_size = getpagesize();
+    uint64_t size_file;
+    RLockFile(0, page_size);    
     if (header_->num_slots_free == 0)
     {
         Status s = ExpandFile();
         if (!s.IsOK())
+        {
+            UnLockFile(0, page_size);
             return s;
+        }
     }
+
+    UnLockFile(0, page_size);
 
     fm_block_t fbt;
     uint64_t pos = free_slots_.back();
     free_slots_.pop_back();
-    header_->num_slots_free -= 1;
+    
+    
+    RLockFile(0, page_size);
+    size_file = header_->size_file;
+    UnLockFile(0, page_size);
 
+    WLockFile(0, size_file);
+
+    header_->num_slots_free -= 1;
     fbt.pos = pos;
     fbt.offset = offset;
     fbt.size = size;
     map_fm_[fbt.offset] = fbt;
     freememory_[pos] = fbt;
+    
+    UnLockFile(0, size_file);
     return Status::OK();
     
 }
@@ -61,9 +77,13 @@ Status FMBMgr::UpdateBlock(offset_t off, offset_t newoff, uint64_t size)
     map_fm_.erase(off);
     map_fm_[newoff] = fbt;
     
+    WLockFile(fbt.pos * sizeof(fm_block_t), sizeof(fm_block_t));
+
     freememory_[fbt.pos].offset = newoff;
     freememory_[fbt.pos].size = size;
     
+    UnLockFile(fbt.pos * sizeof(fm_block_t), sizeof(fm_block_t));
+
     return Status::OK();
 }
 
@@ -73,7 +93,7 @@ Status FMBMgr::DeleteBlock(offset_t off)
     {
         uint64_t pos = map_fm_[off].pos;
         map_fm_.erase(off);
-        freememory_[pos].size = 0;
+        freememory_[pos].size = 0; //free
         freememory_[pos].offset = 0;
         header_->num_slots_free += 1;
         free_slots_.push_back(pos);
@@ -233,5 +253,53 @@ Status FMBMgr::ExpandFile()
         free_slots_.push_back(i);
     return Status::OK();
 
+}
+
+Status FMBMgr::UnLockFile(uint64_t off, uint64_t size)
+{
+    struct flock fl;
+    int rv;
+    fl.l_type = F_UNLCK;
+    fl.l_whence = SEEK_SET;
+    fl.l_start = off;
+    fl.l_len = size;
+
+    rv = fcntl(fd_, F_SETLK, &fl);
+    if (rv < 0)
+        return Status::IOError("Fail to UnRLockFile", strerror(errno));
+    return Status::OK();
+}
+
+Status FMBMgr::RLockFile(uint64_t off, uint64_t size)
+{
+    
+    struct flock fl;
+    int rv;
+    fl.l_type = F_RDLCK;
+    fl.l_whence = SEEK_SET;
+    fl.l_start = off;
+    fl.l_len = size;
+
+    rv = fcntl(fd_, F_SETLK, &fl);
+    if (rv < 0)
+        return Status::IOError("Fail to RLockFile", strerror(errno));
+
+    return Status::OK();
+}
+
+Status FMBMgr::WLockFile(uint64_t off, uint64_t size)
+{
+    struct flock fl;
+    int rv;
+    fl.l_type = F_WRLCK;
+    fl.l_whence = SEEK_SET;
+    fl.l_start = off;
+    fl.l_len = size;
+
+    rv = fcntl(fd_, F_SETLK, &fl);
+    if (rv < 0)
+        return Status::IOError("Fail to WLockFile", strerror(errno));
+
+    return Status::OK();
 }
 

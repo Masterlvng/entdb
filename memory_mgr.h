@@ -15,6 +15,7 @@ namespace entdb
 
     class MemoryMgr
     {
+        friend class FMBMgr;
         public:
             MemoryMgr();
             ~MemoryMgr();
@@ -33,7 +34,6 @@ namespace entdb
             DataPool* dp_;
             FMBMgr* fb_mgr_;
 
-            std::map<offset_t, fm_block_t> map_fm_;
             std::set<fm_block_t> set_fm_;
     };
 };
