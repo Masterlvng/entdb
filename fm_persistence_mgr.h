@@ -6,6 +6,7 @@
 #include <string>
 #include <vector>
 #include <map>
+#include <sys/file.h>
 
 #include <fcntl.h>
 
@@ -56,14 +57,16 @@ namespace entdb {
             Status DeleteBlock(offset_t off);
             Status UpdateBlock(offset_t off, offset_t newoff, uint64_t size);
             Status Sync();
+            
+            std::map<offset_t, fm_block_t> map_fm_; // 需要互斥锁保护这些成员
+            std::vector<index_t> free_slots_; // 记录空闲块在数组中的位置
+
+
 
         private:
             std::string db_name_;
             std::string filename_;
             int fd_;
-
-            std::map<offset_t, fm_block_t> map_fm_; // 需要互斥锁保护这些成员
-            std::vector<index_t> free_slots_; // 记录空闲块在数组中的位置
 
             Status CreateFile(const std::string& filename);
             Status OpenFile(const std::string& filename);

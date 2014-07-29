@@ -30,31 +30,24 @@ Status FMBMgr::AddBlock(offset_t offset, uint64_t size)
     //select free slots
     //if full expand file
     //set pos back to new block
-    int page_size = getpagesize();
     uint64_t size_file;
-    RLockFile(0, page_size);    
+    //RLockFile(0, page_size);    
+    flock(fd_, LOCK_EX);
     if (header_->num_slots_free == 0)
     {
         Status s = ExpandFile();
         if (!s.IsOK())
         {
-            UnLockFile(0, page_size);
+            flock(fd_, LOCK_UN);
             return s;
         }
     }
-
-    UnLockFile(0, page_size);
 
     fm_block_t fbt;
     uint64_t pos = free_slots_.back();
     free_slots_.pop_back();
     
-    
-    RLockFile(0, page_size);
     size_file = header_->size_file;
-    UnLockFile(0, page_size);
-
-    WLockFile(0, size_file);
 
     header_->num_slots_free -= 1;
     fbt.pos = pos;
@@ -62,8 +55,8 @@ Status FMBMgr::AddBlock(offset_t offset, uint64_t size)
     fbt.size = size;
     map_fm_[fbt.offset] = fbt;
     freememory_[pos] = fbt;
-    
-    UnLockFile(0, size_file);
+
+    flock(fd_, LOCK_UN);
     return Status::OK();
     
 }
@@ -77,12 +70,15 @@ Status FMBMgr::UpdateBlock(offset_t off, offset_t newoff, uint64_t size)
     map_fm_.erase(off);
     map_fm_[newoff] = fbt;
     
-    WLockFile(fbt.pos * sizeof(fm_block_t), sizeof(fm_block_t));
+    //WLockFile(fbt.pos * sizeof(fm_block_t), sizeof(fm_block_t));
+    
+    flock(fd_, LOCK_EX);
 
     freememory_[fbt.pos].offset = newoff;
     freememory_[fbt.pos].size = size;
     
-    UnLockFile(fbt.pos * sizeof(fm_block_t), sizeof(fm_block_t));
+    flock(fd_, LOCK_UN);
+    //UnLockFile(fbt.pos * sizeof(fm_block_t), sizeof(fm_block_t));
 
     return Status::OK();
 }
@@ -148,7 +144,6 @@ Status FMBMgr::CreateFile(const std::string& filename)
 
 Status FMBMgr::OpenFile(const std::string& filename)
 {
-    //
     if (access(filename.c_str(), F_OK) == -1)
     {
         Status s = CreateFile(filename);
