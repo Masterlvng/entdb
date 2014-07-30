@@ -15,26 +15,34 @@ MemoryMgr::~MemoryMgr()
     delete fb_mgr_;
 }
 
-Status MemoryMgr::Open(const string& filename, DataPool* dp,
+Status MemoryMgr::Open(const string& filename, DataPool* dp, Version* v,
                         uint64_t data_size, offset_t off_init)
 {
     Status s;
     filename_ = filename;
     dp_ = dp;
+    v_ = v;
     fb_mgr_ = new FMBMgr(filename, data_size, off_init);
     s = fb_mgr_->Open(filename_);
     if (!s.IsOK()) return s;
     std::map<offset_t, fm_block_t>::iterator it_fmb;
+    
+    flock(fb_mgr_->fd_, LOCK_EX);
+    // file lock
     for (it_fmb = fb_mgr_->map_fm_.begin(); it_fmb != fb_mgr_->map_fm_.end(); ++it_fmb)
     {
-        // mutex lock
         set_fm_.insert(it_fmb->second); 
     }
+
+    flock(fb_mgr_->fd_, LOCK_UN);
+
     return Status::OK();
 }
 
 Status MemoryMgr::Close()
 {
+    pthread_kill(loop_id_, SIGUSR1);
+    pthread_join(loop_id_, NULL);
     return fb_mgr_->Close();
 }
 
@@ -50,13 +58,17 @@ Status MemoryMgr::Allocate(uint64_t req_size, offset_t* off_out, uint64_t* rsp_s
     uint64_t page_size = getpagesize();
     *rsp_size = align_size(req_size, ALIGNMENT_DATA);
 
+    flock(fb_mgr_->fd_, LOCK_EX);
+
+    UpdateDS();
+
     fm_block_t fbt; 
     fbt.offset = UINT64_MAX;
     fbt.size = *rsp_size;
     
     std::set<fm_block_t>::iterator it_set;
 
-    //mutex lock
+    //file lock
     it_set = set_fm_.upper_bound(fbt);
     
     if (it_set == set_fm_.end())
@@ -90,7 +102,8 @@ Status MemoryMgr::Allocate(uint64_t req_size, offset_t* off_out, uint64_t* rsp_s
     if ( (it_set->size > *rsp_size * 2)
             || (it_set->size > page_size && it_set->size - *rsp_size > 1024))
     {
-       s = fb_mgr_->UpdateBlock(it_set->offset, it_set->offset +*rsp_size, it_set->size - *rsp_size); 
+       cur_v_ = v_->IncVersion(FM);
+       s = fb_mgr_->UpdateBlock(it_set->offset, it_set->offset +*rsp_size, it_set->size - *rsp_size, cur_v_); 
        off = it_set->offset;
        fm_block_t fbt;
        fbt.offset = it_set->offset + *rsp_size;
@@ -102,13 +115,17 @@ Status MemoryMgr::Allocate(uint64_t req_size, offset_t* off_out, uint64_t* rsp_s
     else
     {
         //拿走整块空闲块
-       s = fb_mgr_->DeleteBlock(it_set->offset);
+        cur_v_ = v_->IncVersion(FM);
+       s = fb_mgr_->DeleteBlock(it_set->offset, cur_v_);
        if (!s.IsOK()) return s;
        *rsp_size = it_set->size;
        off = it_set->offset;
        set_fm_.erase(it_set);
     }
     *off_out = off;
+
+    flock(fb_mgr_->fd_, LOCK_UN);
+
     return Status::OK();
 }
 
@@ -122,7 +139,12 @@ Status MemoryMgr::Free(uint64_t off, uint64_t size)
     fbt.offset = off;
     fbt.size = size;
     
-    fb_mgr_->AddBlock(off, size);
+    flock(fb_mgr_->fd_, LOCK_EX);
+    UpdateDS();
+
+    cur_v_ = v_->IncVersion(FM);
+    
+    fb_mgr_->AddBlock(off, size, cur_v_);
     std::map<uint64_t, fm_block_t>::iterator cur_it, next_it, prev_it;
 
     //mutex lock
@@ -144,9 +166,9 @@ Status MemoryMgr::Free(uint64_t off, uint64_t size)
             fbt_deleted.size = prev_it->second.size;
             set_fm_.erase(set_fm_.find(fbt_deleted));
 
-            fb_mgr_->DeleteBlock(cur_it->second.offset);
+            fb_mgr_->DeleteBlock(cur_it->second.offset, cur_v_);
             fb_mgr_->UpdateBlock(prev_it->second.offset, prev_it->second.offset, 
-                                            prev_it->second.size + cur_it->second.size);
+                                            prev_it->second.size + cur_it->second.size, cur_v_);
 
             fbt_deleted.size += cur_it->second.size;
             set_fm_.insert(fbt_deleted);
@@ -160,9 +182,9 @@ Status MemoryMgr::Free(uint64_t off, uint64_t size)
                             next_it->second.offset) 
        {
             merged_next = true;
-            fb_mgr_->DeleteBlock(next_it->second.offset);
+            fb_mgr_->DeleteBlock(next_it->second.offset, cur_v_);
             fb_mgr_->UpdateBlock(cur_it->second.offset, cur_it->second.offset,
-                                            cur_it->second.size + next_it->second.size);
+                                            cur_it->second.size + next_it->second.size, cur_v_);
             
             fm_block_t fbt_deleted;
             fbt_deleted.offset = next_it->second.offset;
@@ -183,8 +205,11 @@ Status MemoryMgr::Free(uint64_t off, uint64_t size)
     {
        return Status::OK(); 
     }
-    fb_mgr_->AddBlock(off, size);
+    fb_mgr_->AddBlock(off, size, cur_v_);
     set_fm_.insert(fbt);
+
+    flock(fb_mgr_->fd_, LOCK_UN);
+
     return Status::OK();
     
 }
@@ -192,4 +217,99 @@ Status MemoryMgr::Free(uint64_t off, uint64_t size)
 uint64_t MemoryMgr::AlignSize(uint64_t req_size)
 {
     return align_size(req_size, ALIGNMENT_DATA);
+}
+
+void MemoryMgr::StartLoop()
+{
+    //创建线程，运行sniffingloop
+    pthread_create(&loop_id_, NULL, loop_wrapper, this);
+}
+
+void MemoryMgr::SniffingLoop()
+{
+
+    signal(SIGUSR1, exit_thread); 
+    sigset_t set;
+    sigfillset(&set);
+    sigdelset(&set, SIGUSR1);
+    pthread_sigmask(SIG_SETMASK, &set, NULL);
+
+    // while select onfilechange
+    int fd, len, wd;
+    int i = 0;
+    char buf[BUF_SIZE];
+    fd_set all_fds, rd_fds;
+    fd = inotify_init();
+    wd = inotify_add_watch(fd, filename_.c_str(), IN_MODIFY);
+
+    FD_ZERO(&all_fds);
+    FD_SET(fd, &all_fds);
+
+    while(1)
+    {
+        rd_fds = all_fds;   
+        if(select(fd+1, &rd_fds, NULL, NULL, NULL) < 0)
+            break;
+        
+        len = read(fd, buf, BUF_SIZE);
+        if(len < 0)
+            continue;
+        while(i < len)
+        {
+            struct inotify_event* ev = (struct inotify_event*) &buf[i];
+            if (ev->len)
+            {
+                if (ev->mask & IN_MODIFY)
+                {
+                    onFileChange();
+                }
+            }
+            i += EVENT_SIZE + ev->len;
+        }
+    }
+
+    inotify_rm_watch(fd ,wd);
+    close(fd);
+}
+
+void MemoryMgr::onFileChange()
+{
+    UpdateDS();
+}
+
+void MemoryMgr::UpdateDS()
+{
+    /*
+    fb_mgr_->map_fm_;
+    fb_mgr_->free_slots_;
+    set_fm_;
+    */
+    //fb_mgr_->freememory_;
+    //fb_mgr_->header_->num_slots_total;
+    
+    uint64_t i;
+    version_t new_v = cur_v_;
+    for(i = 0; i < fb_mgr_->header_->num_slots_total; ++i)
+    {
+        if (fb_mgr_->freememory_[i].v > cur_v_)
+        {
+            if (new_v < fb_mgr_->freememory_[i].v)
+                new_v = fb_mgr_->freememory_[i].v;
+
+            if (fb_mgr_->freememory_[i].size == 0)
+            {
+                fb_mgr_->free_slots_.insert(i);
+                fb_mgr_->map_fm_[fb_mgr_->freememory_[i].offset] = fb_mgr_->freememory_[i];
+                set_fm_.insert(fb_mgr_->freememory_[i]);
+            }
+            else
+            {
+               // 清除过期无效的free slot
+                fb_mgr_->free_slots_.erase(fb_mgr_->free_slots_.find(i));
+                fb_mgr_->map_fm_.erase(fb_mgr_->map_fm_.find(fb_mgr_->freememory_[i].offset));
+                set_fm_.erase(set_fm_.find(fb_mgr_->freememory_[i]));
+            }
+        }
+    }
+    cur_v_ = new_v;
 }

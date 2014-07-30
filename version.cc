@@ -31,7 +31,7 @@ version_t Version::CurVersion(int target)
     return v;
 }
 
-Status Version::IncVersion(int target)
+version_t Version::IncVersion(int target)
 {
     version_t v;
     uint64_t off = target * sizeof(version_t);
@@ -46,7 +46,7 @@ Status Version::IncVersion(int target)
 
     flock(fd_, LOCK_UN);
 
-    return Status::OK();
+    return v;
 }
 
 Status Version::OpenFile(const std::string& filename)

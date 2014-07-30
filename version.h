@@ -29,7 +29,7 @@ namespace entdb
             ~Version();
             Status Open(const std::string& filename);
             version_t CurVersion(int target);
-            Status IncVersion(int target);
+            version_t IncVersion(int target);
 
         private:
             int fd_;

@@ -24,7 +24,7 @@ Status FMBMgr::Close()
     return CloseFile();
 }
 
-Status FMBMgr::AddBlock(offset_t offset, uint64_t size)
+Status FMBMgr::AddBlock(offset_t offset, uint64_t size, version_t v)
 {
     //new block
     //select free slots
@@ -32,58 +32,57 @@ Status FMBMgr::AddBlock(offset_t offset, uint64_t size)
     //set pos back to new block
     uint64_t size_file;
     //RLockFile(0, page_size);    
-    flock(fd_, LOCK_EX);
     if (header_->num_slots_free == 0)
     {
         Status s = ExpandFile();
         if (!s.IsOK())
         {
-            flock(fd_, LOCK_UN);
             return s;
         }
     }
 
     fm_block_t fbt;
-    uint64_t pos = free_slots_.back();
-    free_slots_.pop_back();
+    uint64_t pos = *free_slots_.begin();
+    free_slots_.erase(free_slots_.begin());
     
     size_file = header_->size_file;
 
     header_->num_slots_free -= 1;
+
+    fbt.v = v; // new version;
     fbt.pos = pos;
     fbt.offset = offset;
     fbt.size = size;
+
     map_fm_[fbt.offset] = fbt;
     freememory_[pos] = fbt;
 
-    flock(fd_, LOCK_UN);
     return Status::OK();
     
 }
 
-Status FMBMgr::UpdateBlock(offset_t off, offset_t newoff, uint64_t size)
+Status FMBMgr::UpdateBlock(offset_t off, offset_t newoff, uint64_t size, version_t v)
 {
     // update freememory_ and map_fm
     
     fm_block_t fbt = map_fm_[off];
     fbt.size = size;
+    fbt.v = v;
     map_fm_.erase(off);
     map_fm_[newoff] = fbt;
     
     //WLockFile(fbt.pos * sizeof(fm_block_t), sizeof(fm_block_t));
-    
-    flock(fd_, LOCK_EX);
 
     freememory_[fbt.pos].offset = newoff;
     freememory_[fbt.pos].size = size;
+    freememory_[fbt.pos].v = fbt.v;
     
-    flock(fd_, LOCK_UN);
     //UnLockFile(fbt.pos * sizeof(fm_block_t), sizeof(fm_block_t));
 
     return Status::OK();
 }
 
-Status FMBMgr::DeleteBlock(offset_t off)
+Status FMBMgr::DeleteBlock(offset_t off, version_t v)
 {
     if (map_fm_.find(off) != map_fm_.end())
     {
@@ -91,8 +90,9 @@ Status FMBMgr::DeleteBlock(offset_t off)
         map_fm_.erase(off);
         freememory_[pos].size = 0; //free
         freememory_[pos].offset = 0;
+        freememory_[pos].v = v;
         header_->num_slots_free += 1;
-        free_slots_.push_back(pos);
+        free_slots_.insert(pos);
     }
     return Status::OK();
 }
@@ -115,6 +115,9 @@ Status FMBMgr::CreateFile(const std::string& filename)
     }
     //init free memory file
     //分配给header的空间是一个page的大小，暂时用不完，留作扩展之用
+    // file lock
+    
+
     int page_size = getpagesize();
     char buf[page_size];
     memset(buf, 0, page_size);
@@ -139,6 +142,7 @@ Status FMBMgr::CreateFile(const std::string& filename)
     write(fd_, buf, page_size);
 
     close(fd_);
+    // file unlock
     return Status::OK();
 }
 
@@ -155,7 +159,7 @@ Status FMBMgr::OpenFile(const std::string& filename)
         return Status::IOError(filename, strerror(errno));
     }
     int page_size = getpagesize();
-
+    
     header_ = static_cast<fm_header_t*>(mmap(0, 
                                             page_size, 
                                             PROT_READ | PROT_WRITE, 
@@ -183,17 +187,17 @@ Status FMBMgr::OpenFile(const std::string& filename)
     {
         if (freememory_[i].size == 0)
         {
-            free_slots_.push_back(i);
+            free_slots_.insert(i);
             ++num_free;
         }
         else
         {
-            fm_block_t fmb = {i, freememory_[i].offset, freememory_[i].size};
+            fm_block_t fmb = {freememory_[i].v, i, freememory_[i].offset, freememory_[i].size};
             map_fm_[fmb.offset] = fmb;
             ++num_used;
         }
     }
-    
+
     return Status::OK();
 }
 
@@ -242,10 +246,12 @@ Status FMBMgr::ExpandFile()
     if (freememory_ == MAP_FAILED)
         return Status::IOError("mmap failed for remap freememory", strerror(errno));
 
+    //todo
+    // remap 部分清零
     uint64_t i;
     // new slots
     for (i = num_slots_cur; i < num_slots_new; ++i)
-        free_slots_.push_back(i);
+        free_slots_.insert(i);
     return Status::OK();
 
 }
