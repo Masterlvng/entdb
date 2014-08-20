@@ -35,6 +35,7 @@ namespace entdb {
         uint64_t num_pages;
         uint64_t num_slots_free;
         uint64_t num_slots_total;
+        version_t v;
     }fm_header_t;
 
     class FMBMgr // free memory block manager,管理空闲块

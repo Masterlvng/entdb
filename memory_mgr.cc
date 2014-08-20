@@ -15,13 +15,16 @@ MemoryMgr::~MemoryMgr()
     delete fb_mgr_;
 }
 
-Status MemoryMgr::Open(const string& filename, DataPool* dp, Version* v,
+Status MemoryMgr::Open(const string& filename, DataPool* dp, Version* v, pthread_cond_t* cond,
                         uint64_t data_size, offset_t off_init)
 {
     Status s;
     filename_ = filename;
     dp_ = dp;
     v_ = v;
+    cond_ = cond;
+    pthread_mutex_init(&mutex_, NULL);
+
     fb_mgr_ = new FMBMgr(filename, data_size, off_init);
     s = fb_mgr_->Open(filename_);
     if (!s.IsOK()) return s;
@@ -33,7 +36,8 @@ Status MemoryMgr::Open(const string& filename, DataPool* dp, Version* v,
     {
         set_fm_.insert(it_fmb->second); 
     }
-
+    
+    StartLoop();
     flock(fb_mgr_->fd_, LOCK_UN);
 
     return Status::OK();
@@ -113,9 +117,9 @@ Status MemoryMgr::Allocate(uint64_t req_size, offset_t* off_out, uint64_t* rsp_s
        set_fm_.insert(fbt);
     }
     else
-    {
-        //拿走整块空闲块
-        cur_v_ = v_->IncVersion(FM);
+   {
+       //拿走整块空闲块
+       cur_v_ = v_->IncVersion(FM);
        s = fb_mgr_->DeleteBlock(it_set->offset, cur_v_);
        if (!s.IsOK()) return s;
        *rsp_size = it_set->size;
@@ -124,6 +128,8 @@ Status MemoryMgr::Allocate(uint64_t req_size, offset_t* off_out, uint64_t* rsp_s
     }
     *off_out = off;
 
+    fb_mgr_->header_->v = cur_v_;
+    pthread_cond_broadcast(cond_);
     flock(fb_mgr_->fd_, LOCK_UN);
 
     return Status::OK();
@@ -200,9 +206,13 @@ Status MemoryMgr::Free(uint64_t off, uint64_t size)
 
        }
     }
+    
+    fb_mgr_->header_->v = cur_v_;
 
+    pthread_cond_broadcast(cond_);
     if (merged_next || merged_prev)
     {
+       flock(fb_mgr_->fd_, LOCK_UN);
        return Status::OK(); 
     }
     fb_mgr_->AddBlock(off, size, cur_v_);
@@ -227,54 +237,28 @@ void MemoryMgr::StartLoop()
 
 void MemoryMgr::SniffingLoop()
 {
-
     signal(SIGUSR1, exit_thread); 
     sigset_t set;
     sigfillset(&set);
     sigdelset(&set, SIGUSR1);
     pthread_sigmask(SIG_SETMASK, &set, NULL);
 
-    // while select onfilechange
-    int fd, len, wd;
-    int i = 0;
-    char buf[BUF_SIZE];
-    fd_set all_fds, rd_fds;
-    fd = inotify_init();
-    wd = inotify_add_watch(fd, filename_.c_str(), IN_MODIFY);
-
-    FD_ZERO(&all_fds);
-    FD_SET(fd, &all_fds);
-
     while(1)
     {
-        rd_fds = all_fds;   
-        if(select(fd+1, &rd_fds, NULL, NULL, NULL) < 0)
-            break;
-        
-        len = read(fd, buf, BUF_SIZE);
-        if(len < 0)
-            continue;
-        while(i < len)
-        {
-            struct inotify_event* ev = (struct inotify_event*) &buf[i];
-            if (ev->len)
-            {
-                if (ev->mask & IN_MODIFY)
-                {
-                    onFileChange();
-                }
-            }
-            i += EVENT_SIZE + ev->len;
-        }
+        pthread_mutex_lock(&mutex_);
+        pthread_cond_wait(cond_, &mutex_);
+        onFileChange();
+        pthread_mutex_unlock(&mutex_);
     }
-
-    inotify_rm_watch(fd ,wd);
-    close(fd);
 }
 
 void MemoryMgr::onFileChange()
 {
+    cout << "On file change" << endl;
+
+    flock(fb_mgr_->fd_, LOCK_EX);
     UpdateDS();
+    flock(fb_mgr_->fd_, LOCK_UN);
 }
 
 void MemoryMgr::UpdateDS()
@@ -286,7 +270,8 @@ void MemoryMgr::UpdateDS()
     */
     //fb_mgr_->freememory_;
     //fb_mgr_->header_->num_slots_total;
-    
+    if (fb_mgr_->header_->v >= cur_v_)
+        return;
     uint64_t i;
     version_t new_v = cur_v_;
     for(i = 0; i < fb_mgr_->header_->num_slots_total; ++i)

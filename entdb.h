@@ -5,6 +5,8 @@
 #include "sk_index.h"
 #include "data_pool.h"
 #include "memory_mgr.h"
+#include "version.h"
+#include "sync_mgr.h"
 #include <vector>
 
 namespace entdb
@@ -28,6 +30,8 @@ namespace entdb
             SKIndex* index_;
             DataPool* dp_;
             MemoryMgr* m_mgr_;
+            Version* v_;
+            SyncMgr* sm_;
 
     };
 };
