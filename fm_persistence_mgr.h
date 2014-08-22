@@ -19,6 +19,7 @@ namespace entdb {
         index_t pos;
         offset_t offset;
         uint64_t size;
+        uint64_t del;
         
         // used for stl set
         bool operator < (const fm_block &block) const
@@ -63,7 +64,7 @@ namespace entdb {
 
             std::map<offset_t, fm_block_t> map_fm_; // 需要互斥锁保护这些成员
             std::set<index_t> free_slots_; // 记录空闲块在数组中的位置
-
+            std::map<uint64_t, fm_block_t> pos2fm_;
             Status CreateFile(const std::string& filename);
             Status OpenFile(const std::string& filename);
             Status CloseFile();

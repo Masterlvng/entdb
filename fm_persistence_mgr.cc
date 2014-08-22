@@ -53,8 +53,9 @@ Status FMBMgr::AddBlock(offset_t offset, uint64_t size, version_t v)
     fbt.pos = pos;
     fbt.offset = offset;
     fbt.size = size;
-
+    fbt.del = 0;
     map_fm_[fbt.offset] = fbt;
+    pos2fm_[pos] = fbt;
     freememory_[pos] = fbt;
 
     return Status::OK();
@@ -68,9 +69,10 @@ Status FMBMgr::UpdateBlock(offset_t off, offset_t newoff, uint64_t size, version
     fm_block_t fbt = map_fm_[off];
     fbt.size = size;
     fbt.v = v;
+    fbt.offset = newoff;
     map_fm_.erase(off);
     map_fm_[newoff] = fbt;
-    
+    pos2fm_[fbt.pos] = fbt;
     //WLockFile(fbt.pos * sizeof(fm_block_t), sizeof(fm_block_t));
 
     freememory_[fbt.pos].offset = newoff;
@@ -90,8 +92,9 @@ Status FMBMgr::DeleteBlock(offset_t off, version_t v)
     {
         uint64_t pos = map_fm_[off].pos;
         map_fm_.erase(off);
-        freememory_[pos].size = 0; //free
-        freememory_[pos].offset = 0;
+        pos2fm_.erase(pos);
+        freememory_[pos].del = 1; //free
+        //freememory_[pos].offset = 0;
         freememory_[pos].v = v;
         header_->num_slots_free += 1;
         free_slots_.insert(pos);
@@ -188,7 +191,7 @@ Status FMBMgr::OpenFile(const std::string& filename)
     int i;
     for (i = 0; i < num_slots; ++i)
     {
-        if (freememory_[i].size == 0)
+        if (freememory_[i].del == 1 || freememory_[i].size == 0)
         {
             free_slots_.insert(i);
             ++num_free;
@@ -197,6 +200,7 @@ Status FMBMgr::OpenFile(const std::string& filename)
         {
             fm_block_t fmb = {freememory_[i].v, i, freememory_[i].offset, freememory_[i].size};
             map_fm_[fmb.offset] = fmb;
+            pos2fm_[i] = fmb;
             ++num_used;
         }
     }

@@ -24,10 +24,11 @@ int main()
     uint64_t size, size1;
     m_mgr.Allocate(124, &off, &size);
     m_mgr.Allocate(124, &off1, &size1);
-
+    cout << "off: " << off << endl;
+    cout << "off1: " << off1 << endl;
+    sleep(2);
     m_mgr.Free(off,size);
     m_mgr.Free(off1,size1);
-
     m_mgr.Close();
     return 1;
 }
