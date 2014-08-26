@@ -89,13 +89,13 @@ Status Entdb::Open(const std::string& location, const std::string& db_name)
     v_ = new Version();
     v_->Open(v_name);
 
+    *sm_ = SyncMgr(location_);  
     index_ = new SKIndex();
-    index_->Open(index_name, 1024);
+    index_->Open(index_name, v_, sm_->mutexr(entdb::INDEX), sm_->condr(entdb::INDEX), 1024);
 
     dp_ = new DataPool();
     // 数值待定
     dp_->Open(dp_name, 1024);
-    *sm_ = SyncMgr(location_);  
     m_mgr_ = new MemoryMgr();
     m_mgr_->Open(fm_name, dp_, v_, sm_->condr(FM), 1024, 0);
 
