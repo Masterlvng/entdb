@@ -24,7 +24,6 @@ int main()
 {
     Entdb db = Entdb();    
     db.Open("/tmp", "entssst");
-    /*
     s_t s = {1,1.1};
   
     vector<char> input, ret;
@@ -36,8 +35,7 @@ int main()
     s_t ss;
     memcpy(&ss, ret.data(), ret.size());
     cout << ss.b << endl;
-    */ 
-    
+    /* 
     map<string, string> m;
 
     vector<char> vs;
@@ -49,7 +47,6 @@ int main()
     {
         write(fd, s.c_str(), s.length());
     }
-    /*
     vs.assign(s.begin(), s.end());
     struct timeval start, end;
     gettimeofday(&start, NULL);

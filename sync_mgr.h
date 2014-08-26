@@ -16,7 +16,7 @@ namespace entdb{
     class SyncMgr
     {
         public:
-            SyncMgr(const std::string& location);
+            SyncMgr(std::string location);
             ~SyncMgr();
             pthread_mutex_t* mutexr(int module);
             pthread_cond_t* condr(int module);

@@ -6,8 +6,9 @@
 using namespace std;
 using namespace entdb;
 
-SyncMgr::SyncMgr(const string& location): location_(location)
+SyncMgr::SyncMgr(string location)
 {
+    location_ = location;
     OpenFile();
 }
 

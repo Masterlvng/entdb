@@ -88,8 +88,7 @@ Status Entdb::Open(const std::string& location, const std::string& db_name)
     
     v_ = new Version();
     v_->Open(v_name);
-
-    *sm_ = SyncMgr(location_);  
+    sm_ = new SyncMgr(location_);  
     index_ = new SKIndex();
     index_->Open(index_name, v_, sm_->mutexr(entdb::INDEX), sm_->condr(entdb::INDEX), 1024);
 

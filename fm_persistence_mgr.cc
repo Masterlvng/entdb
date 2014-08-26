@@ -30,7 +30,6 @@ Status FMBMgr::AddBlock(offset_t offset, uint64_t size, version_t v)
     //select free slots
     //if full expand file
     //set pos back to new block
-    uint64_t size_file;
     //RLockFile(0, page_size);    
     if (header_->num_slots_free == 0)
     {
@@ -44,8 +43,6 @@ Status FMBMgr::AddBlock(offset_t offset, uint64_t size, version_t v)
     fm_block_t fbt;
     uint64_t pos = *free_slots_.begin();
     free_slots_.erase(free_slots_.begin());
-    
-    size_file = header_->size_file;
 
     header_->num_slots_free -= 1;
 
@@ -185,10 +182,10 @@ Status FMBMgr::OpenFile(const std::string& filename)
     if (freememory_ == MAP_FAILED)
         return Status::IOError("mmap fail for memory blocks", strerror(errno));
 
-    int num_slots = size_of_freememory_ / sizeof(fm_block_t);
+    uint64_t num_slots = size_of_freememory_ / sizeof(fm_block_t);
     int num_free = 0;
     int num_used = 0;
-    int i;
+    uint64_t i;
     for (i = 0; i < num_slots; ++i)
     {
         if (freememory_[i].del == 1 || freememory_[i].size == 0)
@@ -198,7 +195,7 @@ Status FMBMgr::OpenFile(const std::string& filename)
         }
         else
         {
-            fm_block_t fmb = {freememory_[i].v, i, freememory_[i].offset, freememory_[i].size};
+            fm_block_t fmb = {freememory_[i].v, i, freememory_[i].offset, freememory_[i].size, 0};
             map_fm_[fmb.offset] = fmb;
             pos2fm_[i] = fmb;
             ++num_used;
