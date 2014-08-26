@@ -18,16 +18,21 @@ SyncMgr::~SyncMgr()
 
 pthread_mutex_t* SyncMgr::mutexr(int module)
 {
+    pthread_mutex_t* mutex;
+    data_ += 3 * sizeof(pthread_cond_t);
     switch(module)
     {
         case INDEX:
+            mutex = (pthread_mutex_t*)data_;
             break;
         case FM:
+            mutex = (pthread_mutex_t*)data_ + 1;
             break;
         case DATA:
+            mutex = (pthread_mutex_t*)data_ + 2;
             break;
     }
-    return NULL;
+    return mutex;
 }
 
 pthread_cond_t* SyncMgr::condr(int module)

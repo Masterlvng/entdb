@@ -40,8 +40,8 @@ util.o: ../util.cc
 sk_index.o: ../sk_index.cc 
 	$(CC) -g ../sk_index.cc -c
 
-sk_index_test: sk_index.o sk_index_test.o
-	$(CC) -g sk_index.o sk_index_test.o -o sk_index_test
+sk_index_test: sk_index.o sk_index_test.o version.o sync_mgr.o
+	$(CC) -g $^ -o sk_index_test -lpthread
 
 sk_index_test.o: sk_index_test.cc
 	$(CC) -g sk_index_test.cc -c 

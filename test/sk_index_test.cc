@@ -1,4 +1,6 @@
 #include "../sk_index.h"
+#include "../sync_mgr.h"
+#include "../version.h"
 
 #include <iostream>
 
@@ -7,24 +9,20 @@ using namespace entdb;
 
 int main()
 {
+    Version v;
+    v.Open("/tmp/version");
+    SyncMgr sm = SyncMgr("/tmp");
     SKIndex ski;
-    ski.Open("/tmp/entIndex", 1024);
-    string s("asdf");
-    /*
-    ski.Put(s, 112, 1233);
+    ski.Open("/tmp/entIndex", &v, sm.mutexr(entdb::INDEX), sm.condr(entdb::INDEX), 1024);
+    string s("asdfsss");
+    ski.Put(s, 1122, 1233, 22222);
 
-    ski.Put("qweqwe", 112, 1233);
+    sleep(2);
 
-    ski.Put("qweqwerr11", 112, 1233);
-    ski.Put("123rqweq", 112, 1233);
-    ski.Put("plplpl23r", 112, 1233);
-    ski.Put("plplo0-01234", 112, 1233);
-    ski.Put("zdaweqwe21", 112, 1233);
     //uint64_t off, size;
     //ski.Get("asdf", &off, &size);
     //cout << off <<", "<< size << endl;
     cout << ski.NumIndex() << endl;
-    */
     return 0;
 }
 

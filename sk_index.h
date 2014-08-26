@@ -5,7 +5,7 @@
 #include "skiplist.hpp"
 #include "version.h"
 #include <string>
-#include <vector>
+#include <set>
 #include <string.h>
 #include <pthread.h>
 #include <unistd.h>
@@ -51,6 +51,7 @@ namespace entdb
 
             typedef struct entry
             {
+               uint32_t flag;
                version_t v;
                uint32_t  pos;
                std::string key;
@@ -72,7 +73,7 @@ namespace entdb
 
             int readEntry(const char* data, entry_t& e);
             void writeEntry(char* data, version_t v, const entry_t& e, bool over_write);
-            void recycleEntry(const uint32_t pos);    
+            void recycleEntry(const entry_t e);    
 
         private:
             std::string filename_;
@@ -84,9 +85,9 @@ namespace entdb
             version_t cur_v_;
             Index index_;
             int fd_;
-            std::vector<uint64_t> free_entry_solts;
+            std::set<uint64_t> free_entry_solts;
             header_t* header_;
-            char* data_;
+            entry_t* data_;
 
             pthread_t loop_id;
             pthread_cond_t* cond_;
