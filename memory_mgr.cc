@@ -173,23 +173,23 @@ Status MemoryMgr::Free(uint64_t off, uint64_t size)
        if (prev_it->second.offset + prev_it->second.size == 
                             cur_it->second.offset)
        {
-           cout << "merge prev" << endl;
+            cout << "merge prev" << endl;
             merged_prev = true; 
             
-            fm_block_t fbt_deleted; 
-            fbt_deleted.offset = prev_it->second.offset;
-            fbt_deleted.size = prev_it->second.size;
+            fm_block_t fbt_deleted, fbt_add; 
+            fbt_deleted.offset = cur_it->second.offset;
+            fbt_deleted.size = cur_it->second.size;
             set_fm_.erase(set_fm_.find(fbt_deleted));
-
             fb_mgr_->DeleteBlock(cur_it->second.offset, cur_v_);
+
             fb_mgr_->UpdateBlock(prev_it->second.offset, prev_it->second.offset, 
                                             prev_it->second.size + cur_it->second.size, cur_v_);
+            fbt_add.offset = prev_it->second.offset;
+            fbt_add.size = prev_it->second.size + cur_it->second.size;
+            set_fm_.insert(fbt_add);
 
-            fbt_deleted.size += cur_it->second.size;
-            set_fm_.insert(fbt_deleted);
-
-            cur_it = fb_mgr_->map_fm_.find(fbt_deleted.offset);
-            next_it = fb_mgr_->map_fm_.find(fbt_deleted.offset);
+            cur_it = fb_mgr_->map_fm_.find(fbt_add.offset);
+            next_it = fb_mgr_->map_fm_.find(fbt_add.offset);
        }
     }
     // 向后合并

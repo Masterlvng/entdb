@@ -5,7 +5,7 @@ using namespace std;
 
 SKIndex::SKIndex():index_(comp_)
 {
-
+    cur_v_ = 0;
 }
 
 SKIndex::~SKIndex()
@@ -23,16 +23,22 @@ Status SKIndex::Get(const std::string& key,
                     uint64_t* size,
                     uint64_t* disk_size)
 {
+    pthread_mutex_lock(outermutex_);
     entry_t e;
+    UpdateDS();
     if (index_.Search(key, e))
     {
         *off = e.off;
         *size = e.value_size;
         *disk_size = e.disk_size;
+        pthread_mutex_unlock(outermutex_);
         return Status::OK();
     }
     else
+    {
+        pthread_mutex_unlock(outermutex_);
         return Status::NotFound("not found");
+    }
 }
 
 Status SKIndex::Put(const std::string& key,
@@ -42,11 +48,16 @@ Status SKIndex::Put(const std::string& key,
 {
     Status s;
     entry_t e;
+
+    pthread_mutex_lock(outermutex_);
+    UpdateDS();
     if(header_->num_free_entries == 0)
     {
         s = ExpandFile();
+        pthread_mutex_unlock(outermutex_);
         if (!s.IsOK()) return s;
     }
+    cur_v_ = v_->IncVersion(INDEX);
     if (index_.Search(key, e))
     {
         //found
@@ -55,7 +66,7 @@ Status SKIndex::Put(const std::string& key,
         e.value_size = value_size;
         e.disk_size = disk_size;
         index_.Insert(key, e);
-        writeEntry(data_ + e.pos * ENTRY_SIZE, e, true);
+        writeEntry(data_ + e.pos * ENTRY_SIZE, cur_v_, e, true);
     }
     else
     {
@@ -69,17 +80,20 @@ Status SKIndex::Put(const std::string& key,
         e.disk_size = disk_size;
 
         index_.Insert(key, e);
-        writeEntry(data_ + pos * ENTRY_SIZE, e, false);
+        writeEntry(data_ + pos * ENTRY_SIZE, cur_v_, e, false);
     }
-    
+    header_->v = cur_v_; 
+    pthread_mutex_lock(outermutex_);
     return Status::OK();
 }
 
 Status SKIndex::Delete(const std::string& key)
 {
     entry_t e;
+    pthread_mutex_lock(outermutex_);
     index_.Delete(key , e);
     recycleEntry(e.pos);
+    pthread_mutex_unlock(outermutex_);
     return Status::OK();
 }
 
@@ -101,12 +115,13 @@ Status SKIndex::Sync()
 int SKIndex::readEntry(const char* data, entry_t& e)
 {
     /* uint32_t flag
+     * uint64_t version
      * uint32_t keysize
      * char* key // max 48
      * uint64_t off
      * uint64_t value size
      * uint64_t disk size
-     * 结构大小固定为 80
+     * 结构大小固定为 88
      * */
    e.pos = (data - data_) / ENTRY_SIZE;
 
@@ -114,6 +129,9 @@ int SKIndex::readEntry(const char* data, entry_t& e)
    if (flag != 1931)
        return 0;
    data += sizeof(uint32_t);
+
+   e.v = *(uint64_t*) data;
+   data += sizeof(uint64_t);
 
    uint32_t keysize = *(uint32_t*) data;
    data += sizeof(uint32_t);
@@ -133,12 +151,16 @@ int SKIndex::readEntry(const char* data, entry_t& e)
    return 1;
 }
 
-void SKIndex::writeEntry(char* data, const entry_t& e, bool over_write)
+void SKIndex::writeEntry(char* data, version_t v, const entry_t& e, bool over_write)
 {
     // free flag
    *(uint32_t*)data = 1931; 
    data += sizeof(uint32_t);
    
+   //version
+   *(uint64_t*)data = v;
+   data += sizeof(uint64_t);
+
    //keysize
    *(uint32_t*)data = e.key.length();
    data += sizeof(uint32_t);
@@ -199,8 +221,12 @@ Status SKIndex::CreateFile(const string& filename, uint64_t num_entries)
     return Status::OK();
 }
 
-Status SKIndex::Open(const string& filename, uint64_t num_entries)
+Status SKIndex::Open(const string& filename, Version* v, 
+        pthread_mutex_t* outmutex, pthread_cond_t* cond, uint64_t num_entries)
 {
+    v_ = v;
+    cond_ = cond;
+    outermutex_ = outmutex;
     return OpenFile(filename, num_entries);
 }
 
@@ -243,8 +269,11 @@ Status SKIndex::OpenFile(const string& filename, uint64_t num_entries)
 
     char* tmp_data = data_; 
     entry_t e;
+    version_t new_v = 0;
     for(; (uint64_t)(tmp_data - data_) < data_size; tmp_data += ENTRY_SIZE)
     {
+        readEntry(tmp_data, e);
+        new_v = (e.v > new_v)? e.v:new_v;
         if (readEntry(tmp_data, e))
         {
             // used entry
@@ -257,11 +286,14 @@ Status SKIndex::OpenFile(const string& filename, uint64_t num_entries)
             free_entry_solts.push_back(pos);
         }
     }
+    cur_v_ = new_v;
     return Status::OK();
 }
 
 Status SKIndex::Close()
 {
+    pthread_kill(loop_id, SIGUSR1);
+    pthread_join(loop_id, NULL);
     return CloseFile();
 }
 
@@ -306,6 +338,41 @@ Status SKIndex::ExpandFile()
     for (;i < header_->num_entries; ++i)
         free_entry_solts.push_back(i);
     return Status::OK();
+}
+
+void SKIndex::onFileChange()
+{
+    pthread_mutex_lock(outermutex_);
+    UpdateDS();
+    pthread_mutex_unlock(outermutex_);
+}
+
+void SKIndex::SniffingLoop()
+{
+    signal(SIGUSR1, exit_thread);
+    sigset_t set;
+    sigfillset(&set);
+    sigdelset(&set, SIGUSR1);
+    pthread_sigmask(SIG_SETMASK, &set, NULL);
+
+    while(1)
+    {
+       pthread_mutex_lock(&innermutex_); 
+       pthread_cond_wait(cond_, &innermutex_); 
+       onFileChange();
+       pthread_mutex_unlock(&innermutex_);
+    }
+}
+
+void SKIndex::StartLoop()
+{
+    pthread_create(&loop_id, NULL, loop_wrapper, this);
+}
+
+void SKIndex::UpdateDS()
+{
+   if(header_->v <= cur_v_)
+       return;
 }
 
 
