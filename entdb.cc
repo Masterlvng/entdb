@@ -38,6 +38,7 @@ Status Entdb::Put(const std::string& key, const std::vector<char>& value)
     vector<char> s(key.begin(), key.end());
     if (index_->Get(key, &off, &value_size, &disk_size).IsOK())
     {
+        //更新key
         //大小刚好
        if (disk_size >= aligned_size)
        {
@@ -74,6 +75,8 @@ Status Entdb::Open(const std::string& location, const std::string& db_name)
 
     string dp_name = location_ + std::string("/data");
     string fm_name = location_ + std::string("/fm");
+    
+    string v_name = location_ + std::string("/version");
    
     if (access(location_.c_str(), F_OK) == -1)
     {
@@ -82,18 +85,19 @@ Status Entdb::Open(const std::string& location, const std::string& db_name)
             return Status::IOError("Fail to create directory in Entdb", strerror(errno));
         }
     }
-   
-    index_ = new SKIndex();
+    
+    v_ = new Version();
+    v_->Open(v_name);
 
-    index_->Open(index_name, 1024);
+    *sm_ = SyncMgr(location_);  
+    index_ = new SKIndex();
+    index_->Open(index_name, v_, sm_->mutexr(entdb::INDEX), sm_->condr(entdb::INDEX), 1024);
 
     dp_ = new DataPool();
     // 数值待定
     dp_->Open(dp_name, 1024);
-
     m_mgr_ = new MemoryMgr();
-
-    m_mgr_->Open(fm_name, dp_, 1024, 0);
+    m_mgr_->Open(fm_name, dp_, v_, sm_->condr(FM), 1024, 0);
 
     return Status::OK();
 }

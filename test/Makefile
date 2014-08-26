@@ -4,7 +4,8 @@ INCLUDE_TEST=-I ..
 
 all: fm_p_mgr_test.o fm_persistence_mgr.o fm_mgr_test  data_pool_test.o data_pool.o data_pool_test \
 	memory_mgr_test.o memory_mgr.o memory_mgr_test util.o sk_index_test entdb_test.o entdb_test entdb.o \
-	version.o version_test.o version_test
+	version.o version_test.o version_test sync_mgr_sign_test sync_mgr_wait_test sync_mgr.o sync_mgr_test.o \
+	sync_mgr_test1.o
 
 fm_mgr_test: fm_p_mgr_test.o fm_persistence_mgr.o
 	$(CC) fm_p_mgr_test.o fm_persistence_mgr.o -o fm_mgr_test -g
@@ -24,10 +25,10 @@ data_pool_test.o: data_pool_test.cc ../data_pool.cc
 data_pool.o: ../data_pool.cc
 	$(CC) -g ../data_pool.cc -c
 
-memory_mgr_test: memory_mgr_test.o data_pool.o memory_mgr.o fm_persistence_mgr.o util.o
-	$(CC) -g memory_mgr.o memory_mgr_test.o data_pool.o fm_persistence_mgr.o util.o  -o memory_mgr_test 
+memory_mgr_test: memory_mgr_test.o data_pool.o memory_mgr.o fm_persistence_mgr.o util.o version.o sync_mgr.o
+	$(CC) -g  $^  -o memory_mgr_test -lpthread  
 
-memory_mgr_test.o: memory_mgr_test.cc ../memory_mgr.cc
+memory_mgr_test.o: memory_mgr_test.cc ../memory_mgr.cc ../sync_mgr.cc
 	$(CC) -g memory_mgr_test.cc -c
 
 memory_mgr.o: ../memory_mgr.cc 
@@ -39,14 +40,14 @@ util.o: ../util.cc
 sk_index.o: ../sk_index.cc 
 	$(CC) -g ../sk_index.cc -c
 
-sk_index_test: sk_index.o sk_index_test.o
-	$(CC) -g sk_index.o sk_index_test.o -o sk_index_test
+sk_index_test: sk_index.o sk_index_test.o version.o sync_mgr.o
+	$(CC) -g $^ -o sk_index_test -lpthread
 
 sk_index_test.o: sk_index_test.cc
 	$(CC) -g sk_index_test.cc -c 
 
-entdb_test: sk_index.o data_pool.o memory_mgr.o entdb.o entdb_test.o fm_persistence_mgr.o util.o
-	$(CC) -g sk_index.o data_pool.o memory_mgr.o entdb.o entdb_test.o fm_persistence_mgr.o util.o -o entdb_test
+entdb_test: sk_index.o data_pool.o memory_mgr.o entdb.o entdb_test.o fm_persistence_mgr.o util.o version.o sync_mgr.o
+	$(CC) -g $^ -o entdb_test -lpthread
 
 entdb_test.o: entdb_test.cc
 	$(CC) -g entdb_test.cc -c
@@ -63,6 +64,21 @@ version_test.o: version_test.cc
 version_test: version_test.o version.o
 	$(CC) -g $^ -o version_test
 
+sync_mgr.o: ../sync_mgr.cc
+	$(CC) -g $^ -c
+
+sync_mgr_test.o: ./sync_mgr_test.cc
+	$(CC) -g $^ -c 
+
+sync_mgr_test1.o: ./sync_mgr_test1.cc
+	$(CC) -g $^ -c 
+
+sync_mgr_sign_test: sync_mgr.o sync_mgr_test.o
+	$(CC) -g $^ -o sync_mgr_sign_test -lpthread
+
+sync_mgr_wait_test: sync_mgr.o sync_mgr_test1.o
+	$(CC) -g $^ -o sync_mgr_wait_test -lpthread
+
 
 clean:
-	rm *.o /tmp/ent*
+	rm *.o /tmp/ent* *_test
