@@ -5,7 +5,7 @@ INCLUDE_TEST=-I ..
 all: fm_p_mgr_test.o fm_persistence_mgr.o fm_mgr_test  data_pool_test.o data_pool.o data_pool_test \
 	memory_mgr_test.o memory_mgr.o memory_mgr_test util.o sk_index_test entdb_test.o entdb_test entdb.o \
 	version.o version_test.o version_test sync_mgr_sign_test sync_mgr_wait_test sync_mgr.o sync_mgr_test.o \
-	sync_mgr_test1.o
+	sync_mgr_test1.o benchmark.o benchmark
 
 fm_mgr_test: fm_p_mgr_test.o fm_persistence_mgr.o
 	$(CC) fm_p_mgr_test.o fm_persistence_mgr.o -o fm_mgr_test -g
@@ -51,6 +51,14 @@ entdb_test: sk_index.o data_pool.o memory_mgr.o entdb.o entdb_test.o fm_persiste
 
 entdb_test.o: entdb_test.cc
 	$(CC) -g entdb_test.cc -c
+
+benchmark: sk_index.o data_pool.o memory_mgr.o entdb.o benchmark.o fm_persistence_mgr.o util.o version.o sync_mgr.o
+	$(CC) -g $^ -o benchmark -lpthread
+
+benchmark.o: benchmark.cc
+	$(CC) -g benchmark.cc -c
+
+
 
 entdb.o: ../entdb.cc
 	$(CC) -g ../entdb.cc -c

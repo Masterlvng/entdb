@@ -187,7 +187,10 @@ void SKIndex::writeEntry(char* data, version_t v, const entry_t& e, bool over_wr
     *(uint64_t*)data = e.disk_size;
 
     if(!over_write)
+    {
+        //23333 if run in multi thread, it's dangerous
         header_->num_free_entries -= 1;
+    }
 };
 
 void SKIndex::recycleEntry(const entry_t e)
@@ -284,9 +287,9 @@ Status SKIndex::OpenFile(const string& filename, uint64_t num_entries)
     version_t new_v = 0;
     for(; (uint64_t)(tmp_data - (char*)data_) < data_size; tmp_data += ENTRY_SIZE)
     {
-        readEntry(tmp_data, e);
+        int ret = readEntry(tmp_data, e);
         new_v = (e.v > new_v)? e.v:new_v;
-        if (readEntry(tmp_data, e))
+        if (ret != 0)
         {
             // used entry
             index_.Insert(e.key, e);
