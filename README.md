@@ -37,4 +37,6 @@ int main()
 ##TODO
 ONLY SUPPORT SINGLE THREAD
 ADD NETWORK SUPPORT
+...
+Maybe do it in another project
 
