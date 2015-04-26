@@ -29,6 +29,7 @@ int main()
     s_t s = {1,1.1};
     char payload[128];
     vector<char> input, ret;
+    payload[0] = 's';
     input.assign(payload, payload + 128);
     
     int i = 0;
@@ -54,6 +55,8 @@ int main()
     for(; i < 1000000; i++)
     {
         db.Get(concate("sdffffcks",i), &ret);
+        if(ret[0] != 's')
+            printf("data error\n");
     }
     
     gettimeofday(&end, NULL);
