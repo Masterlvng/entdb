@@ -37,15 +37,15 @@ Status MemoryMgr::Open(const string& filename, DataPool* dp, Version* v, pthread
     if (!s.IsOK()) return s;
     std::map<offset_t, fm_block_t>::iterator it_fmb;
     
-    flock(fb_mgr_->fd_, LOCK_EX);
+    //flock(fb_mgr_->fd_, LOCK_EX);
     // file lock
     for (it_fmb = fb_mgr_->map_fm_.begin(); it_fmb != fb_mgr_->map_fm_.end(); ++it_fmb)
     {
         set_fm_.insert(it_fmb->second); 
     }
     
-    StartLoop();
-    flock(fb_mgr_->fd_, LOCK_UN);
+    //StartLoop();
+    //flock(fb_mgr_->fd_, LOCK_UN);
 
     return Status::OK();
 }
@@ -69,8 +69,8 @@ Status MemoryMgr::Allocate(uint64_t req_size, offset_t* off_out, uint64_t* rsp_s
     uint64_t page_size = getpagesize();
     *rsp_size = align_size(req_size, ALIGNMENT_DATA);
 
-    flock(fb_mgr_->fd_, LOCK_EX);
-    UpdateDS();
+    //flock(fb_mgr_->fd_, LOCK_EX);
+    //UpdateDS();
 
     fm_block_t fbt; 
     fbt.offset = UINT64_MAX;
@@ -136,9 +136,9 @@ Status MemoryMgr::Allocate(uint64_t req_size, offset_t* off_out, uint64_t* rsp_s
     *off_out = off;
 
     fb_mgr_->header_->v = cur_v_;
-    pthread_cond_broadcast(cond_);
+    //pthread_cond_broadcast(cond_);
 
-    flock(fb_mgr_->fd_, LOCK_UN);
+    //flock(fb_mgr_->fd_, LOCK_UN);
 
     return Status::OK();
 }
@@ -153,8 +153,8 @@ Status MemoryMgr::Free(uint64_t off, uint64_t size)
     fbt.offset = off;
     fbt.size = size;
     
-    flock(fb_mgr_->fd_, LOCK_EX);
-    UpdateDS();
+    //flock(fb_mgr_->fd_, LOCK_EX);
+    //UpdateDS();
 
     cur_v_ = v_->IncVersion(FM);
     
@@ -233,13 +233,13 @@ Status MemoryMgr::Free(uint64_t off, uint64_t size)
     pthread_cond_broadcast(cond_);
     if (merged_next || merged_prev)
     {
-       flock(fb_mgr_->fd_, LOCK_UN);
+       //flock(fb_mgr_->fd_, LOCK_UN);
        return Status::OK(); 
     }
     //fb_mgr_->AddBlock(off, size, cur_v_);
     //set_fm_.insert(fbt);
 
-    flock(fb_mgr_->fd_, LOCK_UN);
+    //flock(fb_mgr_->fd_, LOCK_UN);
 
     return Status::OK();
     

@@ -23,20 +23,20 @@ Status SKIndex::Get(const std::string& key,
                     uint64_t* size,
                     uint64_t* disk_size)
 {
-    pthread_mutex_lock(outermutex_);
+    //pthread_mutex_lock(outermutex_);
     entry_t e;
-    UpdateDS();
+    //UpdateDS();
     if (index_.Search(key, e))
     {
         *off = e.off;
         *size = e.value_size;
         *disk_size = e.disk_size;
-        pthread_mutex_unlock(outermutex_);
+        //pthread_mutex_unlock(outermutex_);
         return Status::OK();
     }
     else
     {
-        pthread_mutex_unlock(outermutex_);
+        //pthread_mutex_unlock(outermutex_);
         return Status::NotFound("not found");
     }
 }
@@ -49,14 +49,14 @@ Status SKIndex::Put(const std::string& key,
     Status s;
     entry_t e;
 
-    pthread_mutex_lock(outermutex_);
-    UpdateDS();
+    //pthread_mutex_lock(outermutex_);
+    //UpdateDS();
     if(header_->num_free_entries == 0)
     {
         s = ExpandFile();
         if (!s.IsOK())
         {
-            pthread_mutex_unlock(outermutex_);
+            //pthread_mutex_unlock(outermutex_);
             return s;
         }
     }
@@ -85,21 +85,21 @@ Status SKIndex::Put(const std::string& key,
         writeEntry((char*)data_ + pos * ENTRY_SIZE, cur_v_, e, false);
     }
     header_->v = cur_v_; 
-    pthread_cond_broadcast(cond_);
-    pthread_mutex_unlock(outermutex_);
+    //pthread_cond_broadcast(cond_);
+    //pthread_mutex_unlock(outermutex_);
     return Status::OK();
 }
 
 Status SKIndex::Delete(const std::string& key)
 {
     entry_t e;
-    pthread_mutex_lock(outermutex_);
+    //pthread_mutex_lock(outermutex_);
     cur_v_ = v_->IncVersion(INDEX);
     index_.Delete(key , e);
     recycleEntry(e);
     header_->v = cur_v_;
-    pthread_cond_broadcast(cond_);
-    pthread_mutex_unlock(outermutex_);
+    //pthread_cond_broadcast(cond_);
+    //pthread_mutex_unlock(outermutex_);
     return Status::OK();
 }
 

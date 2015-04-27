@@ -37,14 +37,14 @@ version_t Version::IncVersion(int target)
     uint64_t off = target * sizeof(version_t);
    
 
-    flock(fd_, LOCK_EX);
+    //flock(fd_, LOCK_EX);
 
     v = *(uint64_t*)(data_ + off); 
     ++v;
     *(uint64_t*)(data_ + off) = v;
     Sync();
 
-    flock(fd_, LOCK_UN);
+    //flock(fd_, LOCK_UN);
 
     return v;
 }

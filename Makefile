@@ -12,6 +12,7 @@ all: $(LIBRARY)
 	mv *.o *.a build/
 
 $(LIBRARY): $(OBJECTS) $(SKOBJECTS)
+	mkdir -p build
 	rm -f $@
 	ar -rs $@ $^
 
@@ -21,4 +22,4 @@ $(SKOBJECTS): $(HPP)
 .cc.o:
 	$(CC) $(CFLAGS) $< -o $@
 clean:
-	rm -f *.o
+	rm -f build/*.o build/$(LIBRARY)
