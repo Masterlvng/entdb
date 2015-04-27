@@ -25,7 +25,7 @@ std::string concate(std::string key, int i)
 int main()
 {
     Entdb db = Entdb();    
-    db.Open("/tmp", "entssst");
+    db.Open("/home/masterlvng/tmp", "entssst");
     s_t s = {1,1.1};
     char payload[128];
     vector<char> input, ret;
@@ -38,6 +38,7 @@ int main()
     gettimeofday(&start, NULL);
     for(; i < 1000000; i++)
     {
+        cout << i << endl;
         db.Put(concate("sdffffcks",i), input);
     }
     
