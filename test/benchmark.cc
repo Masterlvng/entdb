@@ -25,7 +25,7 @@ std::string concate(std::string key, int i)
 int main()
 {
     Entdb db = Entdb();    
-    db.Open("/home/masterlvng/tmp", "entssst");
+    db.Open("./tmp", "entssst");
     s_t s = {1,1.1};
     char payload[128];
     vector<char> input, ret;
@@ -38,8 +38,8 @@ int main()
     gettimeofday(&start, NULL);
     for(; i < 1000000; i++)
     {
-        cout << i << endl;
-        db.Put(concate("sdffffcks",i), input);
+        //cout << i << endl;
+        db.Put(concate("sdfsssfffcks",i), input);
     }
     
     gettimeofday(&end, NULL);
@@ -55,9 +55,7 @@ int main()
     i = 0;
     for(; i < 1000000; i++)
     {
-        db.Get(concate("sdffffcks",i), &ret);
-        if(ret[0] != 's')
-            printf("data error\n");
+        db.Get(concate("sdfsssfffcks",i), &ret);
     }
     
     gettimeofday(&end, NULL);
@@ -67,7 +65,6 @@ int main()
     second_pass = time_pass / 1000.0;
     rps = 1000000 / second_pass;
     printf("GET qps: %.2f\n", rps);
-
 
     /* 
     map<string, string> m;

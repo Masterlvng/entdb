@@ -76,7 +76,7 @@ Status FMBMgr::UpdateBlock(offset_t off, offset_t newoff, uint64_t size, version
     freememory_[fbt.pos].size = size;
     freememory_[fbt.pos].v = fbt.v;
 
-    Sync();
+    //Sync();
     
     //UnLockFile(fbt.pos * sizeof(fm_block_t), sizeof(fm_block_t));
 
@@ -96,7 +96,7 @@ Status FMBMgr::DeleteBlock(offset_t off, version_t v)
         header_->num_slots_free += 1;
         free_slots_.insert(pos);
     }
-    Sync();
+    //Sync();
     return Status::OK();
 }
 
@@ -218,7 +218,7 @@ Status FMBMgr::ExpandFile()
     munmap(freememory_, size_of_freememory_);
 
     // 增长两倍
-    uint64_t add_times = 2;
+    uint64_t add_times = 4;
     uint64_t page_size = getpagesize();
     uint64_t fm_size_cur = header_->num_pages * page_size;
     uint64_t num_slots_cur = fm_size_cur / sizeof(fm_block_t);

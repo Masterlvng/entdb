@@ -60,7 +60,8 @@ Status SKIndex::Put(const std::string& key,
             return s;
         }
     }
-    cur_v_ = v_->IncVersion(INDEX);
+    //cur_v_ = v_->IncVersion(INDEX);
+    cur_v_ = 0;
     if (index_.Search(key, e))
     {
         //found

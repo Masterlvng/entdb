@@ -85,7 +85,7 @@ Status MemoryMgr::Allocate(uint64_t req_size, offset_t* off_out, uint64_t* rsp_s
     {
         //没找到空位，需要扩展
         
-        int add_times = 2;    
+        int add_times = 4;    
         uint64_t size_data_old = dp_->PoolSize();
         uint64_t size_data_new = size_data_old * add_times;
         if (*rsp_size > size_data_new - dp_->PoolSize())
@@ -112,7 +112,8 @@ Status MemoryMgr::Allocate(uint64_t req_size, offset_t* off_out, uint64_t* rsp_s
     if ( (it_set->size > *rsp_size * 2)
             || (it_set->size > page_size && it_set->size - *rsp_size > 1024))
     {
-       cur_v_ = v_->IncVersion(FM);
+       //cur_v_ = v_->IncVersion(FM);
+       cur_v_ = 0;
        s = fb_mgr_->UpdateBlock(it_set->offset, it_set->offset +*rsp_size, it_set->size - *rsp_size, cur_v_); 
        off = it_set->offset;
        fm_block_t fbt;
@@ -126,7 +127,8 @@ Status MemoryMgr::Allocate(uint64_t req_size, offset_t* off_out, uint64_t* rsp_s
     else
    {
        //拿走整块空闲块
-       cur_v_ = v_->IncVersion(FM);
+       //cur_v_ = v_->IncVersion(FM);
+       cur_v_ = 0;
        s = fb_mgr_->DeleteBlock(it_set->offset, cur_v_);
        if (!s.IsOK()) return s;
        *rsp_size = it_set->size;
@@ -156,7 +158,8 @@ Status MemoryMgr::Free(uint64_t off, uint64_t size)
     //flock(fb_mgr_->fd_, LOCK_EX);
     //UpdateDS();
 
-    cur_v_ = v_->IncVersion(FM);
+    //cur_v_ = v_->IncVersion(FM);
+    cur_v_ = 0;
     
     fb_mgr_->AddBlock(off, size, cur_v_);
     set_fm_.insert(fbt);

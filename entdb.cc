@@ -94,9 +94,9 @@ Status Entdb::Open(const std::string& location, const std::string& db_name)
 
     dp_ = new DataPool();
     // 数值待定
-    dp_->Open(dp_name, 1024);
+    dp_->Open(dp_name, 64 * 1024 * 1024);
     m_mgr_ = new MemoryMgr();
-    m_mgr_->Open(fm_name, dp_, v_, sm_->condr(FM), 1024, 0);
+    m_mgr_->Open(fm_name, dp_, v_, sm_->condr(FM), 64 * 1024 * 1024, 0);
 
     return Status::OK();
 }

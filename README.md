@@ -2,8 +2,7 @@ EntDB -- Embedded Key-Value database based on share-memory
 =====
 
 ## Feature
-Support data synchronization between processes
-High performance
+High read performance with mmap
 
 ```
 #include "entdb.h"
@@ -32,7 +31,25 @@ int main()
     memcpy(&ss, ret.data(), ret.size());
     cout << ss.b << endl;
 }
+
+Performance @ Intel(R) Core(TM) i5 CPU 2.67GHz, 6G ram
+
+PUT 1000000 cost 32588 ms
+PUT qps: 30686.14
+
+Get key not in db
+
+GET 1000000 cost 3147 ms
+GET qps: 317762.94
+
+Get key all in db
+
+GET 1000000 cost 8005 ms
+GET qps: 124921.92
+
 ```
+
+
 
 ##TODO
 ONLY SUPPORT SINGLE THREAD
