@@ -32,6 +32,11 @@ int main()
     cout << ss.b << endl;
 }
 
+
+```
+
+##PERFORMANCE
+```
 Performance @ Intel(R) Core(TM) i5 CPU 2.67GHz, 6G ram
 
 PUT 1000000 cost 32588 ms
@@ -46,6 +51,7 @@ Get key all in db
 
 GET 1000000 cost 8005 ms
 GET qps: 124921.92
+
 
 ```
 
